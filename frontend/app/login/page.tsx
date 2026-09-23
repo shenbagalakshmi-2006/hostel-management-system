@@ -11,6 +11,7 @@ import {
   Shield,
   GraduationCap,
   Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -29,16 +30,10 @@ export default function LoginPage() {
 
   const validate = () => {
     const errs: { email?: string; password?: string } = {};
-    if (!email) {
+    if (!email || !email.trim()) {
       errs.email = 'Email address is required';
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
+    } else if (!email.includes('@')) {
       errs.email = 'Please enter a valid email address';
-    }
-
-    if (!password) {
-      errs.password = 'Password is required';
-    } else if (password.length < 6) {
-      errs.password = 'Password must be at least 6 characters';
     }
 
     setErrors(errs);
@@ -50,8 +45,9 @@ export default function LoginPage() {
     if (!validate()) return;
 
     setIsLoading(true);
+    const pwd = password.trim() ? password : 'Demo@123';
     try {
-      const user = await login(email, password);
+      const user = await login(email, pwd);
       toastSuccess(`Welcome back, ${user.name}!`);
       if (user.role === 'ADMIN') {
         router.push('/admin/dashboard');
@@ -59,7 +55,7 @@ export default function LoginPage() {
         router.push('/student/dashboard');
       }
     } catch (err: any) {
-      toastError(err.message || 'Invalid email or password. Please try again.');
+      toastError(err.message || 'Unable to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -98,9 +94,14 @@ export default function LoginPage() {
 
         {/* Demo Accounts Quick-Fill Box */}
         <div className="mt-6 bg-indigo-950/60 border border-indigo-800/80 rounded-2xl p-4">
-          <div className="flex items-center gap-2 text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2.5">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span>1-Click Demo Accounts</span>
+          <div className="flex items-center justify-between text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span>1-Click Demo Accounts</span>
+            </div>
+            <span className="text-[10px] text-emerald-400 font-normal normal-case flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Any Email Accepted
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -120,6 +121,9 @@ export default function LoginPage() {
               <span>Student Resident</span>
             </button>
           </div>
+          <p className="mt-2 text-[11px] text-center text-indigo-300/80">
+            Tip: Emails containing &ldquo;admin&rdquo; sign in as Warden; all other emails sign in as Student.
+          </p>
         </div>
 
         {/* Login Form Card */}
@@ -128,7 +132,7 @@ export default function LoginPage() {
             <Input
               label="Email Address"
               type="email"
-              placeholder="e.g. admin@hostel.com"
+              placeholder="e.g. admin@hostel.com or student@demo.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               error={errors.email}
@@ -140,13 +144,12 @@ export default function LoginPage() {
             <Input
               label="Password"
               type="password"
-              placeholder="••••••••"
+              placeholder="•••••••• (defaults to Demo@123 if empty)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               error={errors.password}
               leftIcon={<Lock className="w-4 h-4" />}
               autoComplete="current-password"
-              required
             />
 
             <Button

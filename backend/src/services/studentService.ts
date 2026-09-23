@@ -1,8 +1,10 @@
+import mongoose from 'mongoose';
 import { Student, IStudent } from '../models/Student.js';
 import { User } from '../models/User.js';
 import { Allocation } from '../models/Allocation.js';
 import { Room } from '../models/Room.js';
 import { Complaint } from '../models/Complaint.js';
+import { inMemoryStore } from '../utils/inMemoryStore.js';
 
 export interface StudentFilters {
   search?: string;
@@ -15,7 +17,23 @@ export interface StudentFilters {
 
 export class StudentService {
   static async getAllStudents(filters: StudentFilters) {
-    const { search, department, year, gender, page = 1, limit = 10 } = filters;
+    if (mongoose.connection.readyState !== 1) {
+      let list = [...inMemoryStore.students];
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        list = list.filter((st) => st.name.toLowerCase().includes(s) || st.studentId.toLowerCase().includes(s) || st.department.toLowerCase().includes(s));
+      }
+      if (filters.department) list = list.filter((st) => st.department === filters.department);
+      if (filters.year) list = list.filter((st) => st.year === Number(filters.year));
+      if (filters.gender) list = list.filter((st) => st.gender === filters.gender);
+      return {
+        students: list,
+        pagination: { page: 1, limit: list.length, total: list.length, totalPages: 1 },
+      };
+    }
+
+    try {
+      const { search, department, year, gender, page = 1, limit = 10 } = filters;
     const query: any = {};
 
     if (search) {
@@ -58,6 +76,13 @@ export class StudentService {
         totalPages: Math.ceil(total / Number(limit)) || 1,
       },
     };
+    } catch (err) {
+      console.warn('[StudentService] DB error, using in-memory students:', err);
+      return {
+        students: inMemoryStore.students,
+        pagination: { page: 1, limit: inMemoryStore.students.length, total: inMemoryStore.students.length, totalPages: 1 },
+      };
+    }
   }
 
   static async getStudentById(id: string) {

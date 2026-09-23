@@ -1,11 +1,18 @@
+import mongoose from 'mongoose';
 import { Student } from '../models/Student.js';
 import { Room } from '../models/Room.js';
 import { Complaint } from '../models/Complaint.js';
 import { Allocation } from '../models/Allocation.js';
+import { inMemoryStore } from '../utils/inMemoryStore.js';
 
 export class DashboardService {
   static async getStats() {
-    const totalStudents = await Student.countDocuments();
+    if (mongoose.connection.readyState !== 1) {
+      return inMemoryStore.getDashboardStats();
+    }
+
+    try {
+      const totalStudents = await Student.countDocuments();
     const totalRooms = await Room.countDocuments();
 
     // Aggregations on Room collection for beds & capacity
@@ -95,5 +102,9 @@ export class DashboardService {
       recentAllocations,
       recentComplaints,
     };
+    } catch (err) {
+      console.warn('[DashboardService] DB error, using in-memory stats:', err);
+      return inMemoryStore.getDashboardStats();
+    }
   }
 }

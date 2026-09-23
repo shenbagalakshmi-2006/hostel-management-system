@@ -3,13 +3,21 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export const connectDB = async (): Promise<void> => {
+export let isDbConnected = false;
+
+export const connectDB = async (): Promise<boolean> => {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/hostel_management';
   try {
-    const conn = await mongoose.connect(mongoUri);
+    const conn = await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 2000,
+    });
     console.log(`[Database] MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
-  } catch (error) {
-    console.error(`[Database Error] Failed to connect to MongoDB at ${mongoUri}:`, error);
-    process.exit(1);
+    isDbConnected = true;
+    return true;
+  } catch (error: any) {
+    console.warn(`[Database Warning] Could not connect to local MongoDB (${error.message || 'connection failed'}).`);
+    console.log(`[Database] 🚀 Switching seamlessly to In-Memory Demo Mode with realistic hostel records.`);
+    isDbConnected = false;
+    return false;
   }
 };

@@ -23,7 +23,7 @@ export class AuthController {
         res.status(401).json({ success: false, message: 'Unauthenticated' });
         return;
       }
-      const user = await AuthService.getMe(req.user.userId);
+      const user = await AuthService.getMe(req.user.userId, req.user);
       res.status(200).json({
         success: true,
         data: user,

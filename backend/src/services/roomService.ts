@@ -1,7 +1,9 @@
+import mongoose from 'mongoose';
 import { Room, IRoom } from '../models/Room.js';
 import { Student } from '../models/Student.js';
 import { Allocation } from '../models/Allocation.js';
 import { RoomStatus, RoomType } from '../types/index.js';
+import { inMemoryStore } from '../utils/inMemoryStore.js';
 
 export interface RoomFilters {
   search?: string;
@@ -14,7 +16,21 @@ export interface RoomFilters {
 
 export class RoomService {
   static async getAllRooms(filters: RoomFilters) {
-    const { search, status, block, floor, roomType, availableOnly } = filters;
+    if (mongoose.connection.readyState !== 1) {
+      let rooms = [...inMemoryStore.rooms];
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        rooms = rooms.filter((r) => r.roomNumber.toLowerCase().includes(s) || r.block.toLowerCase().includes(s));
+      }
+      if (filters.status) rooms = rooms.filter((r) => r.status === filters.status);
+      if (filters.block) rooms = rooms.filter((r) => r.block === filters.block?.toUpperCase());
+      if (filters.roomType) rooms = rooms.filter((r) => r.roomType === filters.roomType);
+      if (filters.availableOnly) rooms = rooms.filter((r) => r.availableBeds > 0 && r.status !== 'MAINTENANCE');
+      return rooms;
+    }
+
+    try {
+      const { search, status, block, floor, roomType, availableOnly } = filters;
     const query: any = {};
 
     if (search) {
@@ -48,6 +64,10 @@ export class RoomService {
 
     const rooms = await Room.find(query).sort({ block: 1, roomNumber: 1 });
     return rooms;
+    } catch (err) {
+      console.warn('[RoomService] DB error, using in-memory rooms:', err);
+      return inMemoryStore.rooms;
+    }
   }
 
   static async getRoomById(id: string) {

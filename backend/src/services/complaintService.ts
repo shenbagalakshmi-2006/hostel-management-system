@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Complaint, IComplaint } from '../models/Complaint.js';
 import { Student } from '../models/Student.js';
 import {
@@ -5,6 +6,7 @@ import {
   ComplaintPriority,
   ComplaintStatus,
 } from '../types/index.js';
+import { inMemoryStore } from '../utils/inMemoryStore.js';
 
 export interface ComplaintFilters {
   search?: string;
@@ -16,22 +18,45 @@ export interface ComplaintFilters {
 
 export class ComplaintService {
   static async generateComplaintId(): Promise<string> {
-    const lastComplaint = await Complaint.findOne().sort({ createdAt: -1 });
-    if (!lastComplaint || !lastComplaint.complaintId) {
-      return 'CMP-0001';
+    if (mongoose.connection.readyState !== 1) {
+      return `CMP-${String(inMemoryStore.complaints.length + 1).padStart(4, '0')}`;
     }
+    try {
+      const lastComplaint = await Complaint.findOne().sort({ createdAt: -1 });
+      if (!lastComplaint || !lastComplaint.complaintId) {
+        return 'CMP-0001';
+      }
 
-    const match = lastComplaint.complaintId.match(/CMP-(\d+)/);
-    if (match) {
-      const nextNum = parseInt(match[1], 10) + 1;
-      return `CMP-${String(nextNum).padStart(4, '0')}`;
+      const match = lastComplaint.complaintId.match(/CMP-(\d+)/);
+      if (match) {
+        const nextNum = parseInt(match[1], 10) + 1;
+        return `CMP-${String(nextNum).padStart(4, '0')}`;
+      }
+
+      return `CMP-${Date.now().toString().slice(-4)}`;
+    } catch {
+      return `CMP-${String(inMemoryStore.complaints.length + 1).padStart(4, '0')}`;
     }
-
-    return `CMP-${Date.now().toString().slice(-4)}`;
   }
 
   static async getAllComplaints(filters: ComplaintFilters, userRole?: string, studentProfileId?: string) {
-    const query: any = {};
+    if (mongoose.connection.readyState !== 1) {
+      let list = [...inMemoryStore.complaints];
+      if (userRole === 'STUDENT' && studentProfileId) {
+        list = list.filter((c) => c.student?._id === studentProfileId || c.student?.user === studentProfileId);
+      }
+      if (filters.category) list = list.filter((c) => c.category === filters.category);
+      if (filters.priority) list = list.filter((c) => c.priority === filters.priority);
+      if (filters.status) list = list.filter((c) => c.status === filters.status);
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        list = list.filter((c) => c.complaintId.toLowerCase().includes(s) || c.description.toLowerCase().includes(s));
+      }
+      return list;
+    }
+
+    try {
+      const query: any = {};
 
     // If student, only return their own complaints
     if (userRole === 'STUDENT' && studentProfileId) {
@@ -82,6 +107,10 @@ export class ComplaintService {
     }
 
     return complaints;
+    } catch (err) {
+      console.warn('[ComplaintService] DB error, using in-memory complaints:', err);
+      return inMemoryStore.complaints;
+    }
   }
 
   static async getComplaintById(id: string) {
